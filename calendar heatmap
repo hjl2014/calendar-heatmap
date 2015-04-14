@@ -1,0 +1,59 @@
+ library(repmis)
+library(tidyr)
+library(plyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+
+data <- source_DropboxData("MEASLES_Incidence_1928-2003_20150410124855.csv", 
+                           key="r8cws0imcm8r9e9", header=T, stringsAsFactors=F)
+
+library("dplyr")
+library("ggplot2")
+library("reshape2")
+
+cols <- c(colorRampPalette(c("#f6eff7", "#d0d1e6", "#a6bddb", "#67a9cf","#1c9099", "#016c59"))(10),
+          colorRampPalette(c("#ffffb2", "#fecc5c","#fd8d3c", "#f03b20","#bd0026"), bias=2)(90))
+
+measles <-data %>% 
+  gather(STATE, ESTIMATE,3:ncol(data), convert=T)  %>% 
+mutate(ESTIMATE=as.numeric(ESTIMATE)) %>%
+  rowwise() %>%
+  mutate(STATE2=state.abb[match(STATE, toupper(state.name))],
+         STATE2=ifelse(STATE == "DISTRICT OF COLUMBIA", "DOC", STATE2),
+         STATE=paste(toupper(substring(STATE, 1, 1)),
+                     tolower(substring(STATE, 2)), sep="", collapse=" ")) %>%
+  group_by(STATE, STATE2, YEAR) %>%
+  summarise(ESTIMATE=ifelse(all(is.na(ESTIMATE)), NA, scale(ESTIMATE,  center = TRUE, scale = TRUE))) %>%
+  ungroup() %>% 
+  mutate(STATE2=factor(STATE2, levels=rev(sort(STATE2)))) %>%
+
+  ggplot(measles ,aes(y=reorder(STATE, as.numeric(STATE2)), x=YEAR, fill=ESTIMATE)) + 
+  geom_tile(colour="white", linewidth=0.5, width=0.9, height=0.9) + theme_minimal() +
+  #scale_fill_gradientn(colours=c("red", "gold", "green"), limits=c(-3, 3), 
+  scale_fill_gradientn(colours=cols[c(11,median(cols),length(cols))], limits=c(-3, 3),
+                       #breaks=seq(-3, 3, by=0.2), 
+                       na.value=rgb(246, 246, 246, max=255),
+                       #labels=c("0k", "1k", "2k", "3k", "4k"),
+                       guide=guide_colourbar(ticks=T, nbin=10,
+                                             barheight=.5, label=T,
+                                             barwidth=10)) +
+  scale_x_continuous(expand=c(0,0), breaks=seq(1930, 2010, by=10)) +
+  geom_segment(x=1963, xend=1963, y=0, yend=51.5, size=.9, lineend="round") +
+  labs(x="", y="", fill="") +
+  ggtitle("Measles") +
+  theme(legend.position=c(.5, -.05),
+        legend.direction="horizontal",
+        legend.text=element_text(colour="grey20"),
+        plot.margin=grid::unit(c(.5,.5,1.5,.5), "cm"),
+        axis.text.x=element_text(size=10),
+        axis.line.x=element_line(colour="grey20", size=2),
+        axis.ticks.y=element_blank(),
+        axis.ticks.x=element_line(colour="grey20"),
+        axis.ticks.length=grid::unit(.1, "cm"),
+        panel.grid=element_blank(),
+        title=element_text(hjust=-.07, face="bold", vjust=1, family="Helvetica"),
+        text=element_text(family="URWHelvetica")) +
+  annotate("text", label="Vaccine introduced", x=1963, y=53, vjust=1, hjust=0,
+           size=I(3), family="Helvetica")
+  
